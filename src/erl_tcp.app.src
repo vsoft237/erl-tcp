@@ -11,5 +11,5 @@
   {modules, []},
 
   {licenses, ["MIT"]},
-  {links, []}
+  {links, [{"Github","https://github.com/arthasyou/erl-tcp.git"}]}]}
  ]}.

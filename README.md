@@ -1,2 +1,9 @@
-# erl-tcp
-erlang tcp demo
+erl-tcp
+=====
+
+An OTP application
+
+Build
+-----
+
+    $ rebar3 compile

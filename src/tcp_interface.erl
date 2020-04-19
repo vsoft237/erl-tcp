@@ -4,8 +4,6 @@
 
 -module(tcp_interface).
 
--define(TCP_PATH, "priv/config/tcp.config").
-
 -define(DEFAULT_PORTS, [[20001, normal]]).
 
 %% ====================================================================
@@ -14,10 +12,8 @@
 -export([start/0]).
 
 start() ->
-%%	{ok, [{tcp, Data}]} = file:consult(?TCP_PATH),
-
-	{ok, Data} = application:get_env(eos, tcp),
-	Ports = get_ports(Data),
+	{ok, Data} = application:get_env(tcp, ports),
+	Ports = get_ports(Data, []),
 	start(Ports).
 
 start([Port|T]) ->
@@ -26,15 +22,16 @@ start([Port|T]) ->
 start([]) ->
 	ok.
 
-get_ports([{Type, Value} | T]) ->
-	case Type of
-		ports ->
-			Value;
+get_ports([H | T], Loop) ->
+	{_,[{_, Port},{_, Type}]} = H,
+	get_ports(T, [[Port, Type]|Loop]);
+get_ports([], Loop) ->
+	case Loop of
+		[] ->
+			?DEFAULT_PORTS;
 		_ ->
-			get_ports(T)
-	end;
-get_ports([]) ->
-	?DEFAULT_PORTS.
+			Loop
+	end.
 
 %%-----------------------------------------
 

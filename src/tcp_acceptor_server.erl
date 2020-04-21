@@ -6,22 +6,19 @@
 
 -define(HEARBEAT_TIMEOUT, (30000)). %% 客户端心跳包时间
 
--export([start/2, start_link/2]).
+-export([start_link/3]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 		 terminate/2, code_change/3]).
 
-start(LSock, Type) ->
-	gen_server:start(?MODULE, [LSock, Type], []).
+start_link(LSock, Type, Ssl) ->
+	gen_server:start_link(?MODULE, [LSock, Type, Ssl], []).
 
-start_link(LSock, Type) ->
-	gen_server:start_link(?MODULE, [LSock, Type], []).
-
-init([LSock, Type]) ->
+init([LSock, Type, Ssl]) ->
 	process_flag(trap_exit, true),
 	Self = self(),
 	gen_server:cast(Self, start_accept),
-	{ok, #tcp_state{lsock = LSock, type = Type}}.
+	{ok, #tcp_state{lsock = LSock, type = Type, ssl = Ssl}}.
 
 %% call
 handle_call(_Msg, _From, State) ->
@@ -41,19 +38,13 @@ handle_cast(_Msg, State) ->
 %% =================================================================
 
 %% 接受数据
-handle_info({data, {Cmd, Data, Module}}, State) ->
-%%	?DEBUG("====receiv data==== Cmd:~p, Data:~p, Module:~p~n", [Cmd, Data, Module]),
-	router:rout_msg(Cmd, Data, Module, State),
-	{noreply, State};
-
-%% info
-handle_info({web_json, Json}, State) ->
-	router:rout_json(Json, State),
+handle_info({data, Args}, State) ->
+	router:rout_msg(Args, State),
 	{noreply, State};
 
 %% 发数据
 handle_info({tcp_send, Bin}, State) ->
-    #tcp_state{type = Type, socket = Socket} = State,
+    #tcp_state{type = Type, ssl = Ssl, socket = Socket} = State,
 	NewBin =
 	case Type of
 		normal ->
@@ -61,31 +52,17 @@ handle_info({tcp_send, Bin}, State) ->
 		_ ->
 			web_packet:pack_web_bin(Bin)
 	end,
-	case Type of
-		ssl ->
+	case Ssl of
+		true ->
 			ssl:send(Socket, NewBin);
 		_ ->
 			gen_tcp:send(Socket, NewBin)
 	end,
 	{noreply, State};
 
-handle_info({tcp_json_send, Bin}, State) ->
-	#tcp_state{type = Type, socket = Socket} = State,
-	case Type of
-		web ->
-			NewBin = web_packet:pack_web_bin(Bin, 1),
-			gen_tcp:send(Socket, NewBin);
-		ssl ->
-			NewBin = web_packet:pack_web_bin(Bin, 1),
-%%			lager:info("tcp_ssl_json_send:~p~n", [NewBin]),
-			ssl:send(Socket, NewBin);
-		_ ->
-			ok
-	end,
-	{noreply, State};
-
 %% Web Socket 首次接入
-handle_info({Type, Socket, HeaderData}, State) ->
+handle_info({_Type, Socket, HeaderData}, State) ->
+	#tcp_state{type = Type, ssl = Ssl} = State,
 	HeaderList = binary:split(HeaderData, <<"\r\n">>, [global]),
 	HeaderList1 = [list_to_tuple(binary:split(Header, <<": ">>)) || Header <- HeaderList],
     case lists:keyfind(<<"Sec-WebSocket-Key">>, 1, HeaderList1) of
@@ -101,14 +78,13 @@ handle_info({Type, Socket, HeaderData}, State) ->
                 <<"Sec-WebSocket-Accept: ">>, Base64, <<"\r\n">>,
                 <<"\r\n">>
             ],
+			RecvPid = tcp_receiver:start(Socket, self(), Type, Ssl),
 			case Type of
 				ssl ->
 					ssl:send(Socket, Handshake),
-					RecvPid = web_ssl_receiver:start(Socket, self()),
 					ssl:controlling_process(Socket, RecvPid);
 				_ ->
 					gen_tcp:send(Socket, Handshake),
-					RecvPid = web_tcp_receiver:start(Socket, self()),
 					gen_tcp:controlling_process(Socket, RecvPid)
 			end,
 			UserAgent = get_user_agent(HeaderList1),
@@ -118,8 +94,6 @@ handle_info({Type, Socket, HeaderData}, State) ->
             },
             {noreply, NewState}
     end;
-
-
 
 handle_info(exit_without_connect, State) ->
 	{stop, normal, State};
@@ -164,28 +138,27 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%------------------------------------------------------
 
-
-
 %% 创建接收socket
-start_accept(#tcp_state{lsock = LSock, type = Type = ssl} = State) ->
+start_accept(#tcp_state{lsock = LSock, type = Type, ssl = Ssl} = State) when Ssl == true ->
 	case ssl:transport_accept(LSock) of
 		{ok, Socket} ->
-			tcp_acceptor_sup:start_child(LSock, Type),
+			tcp_acceptor_sup:start_child(LSock, Type, Ssl),
 			NewState = ssl_get_ip_addr(Socket, State),
-			ssl_connection:handshake(Socket, infinity),
+			SslSocket = ssl:handshake(Socket, 6000),
 			ssl:setopts(Socket, [{active, once}]),
 			NewState;
 		_ ->
 			State
 	end;
-start_accept(#tcp_state{lsock = LSock, type = Type} = State) ->
+
+start_accept(#tcp_state{lsock = LSock, type = Type, ssl = Ssl} = State) ->
 	case gen_tcp:accept(LSock) of
 		{ok, Socket} ->
-			tcp_acceptor_sup:start_child(LSock, Type),
+			tcp_acceptor_sup:start_child(LSock, Type, false),
             NewState = get_ip_addr(Socket, State),
             case Type of
                 normal ->
-                    RecvPid = tcp_receiver:start(Socket, self()),
+                    RecvPid = tcp_receiver:start(Socket, self(), Type, Ssl),
                     gen_tcp:controlling_process(Socket, RecvPid),
                     NewState#tcp_state{
                         receiver_pid = RecvPid
@@ -248,3 +221,4 @@ get_user_agent(List) ->
 		_ ->
 			Str3
 	end.
+

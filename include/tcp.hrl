@@ -1,6 +1,7 @@
 -record(tcp_state, {
 	lsock,
 	type,
+	ssl,
 	socket,
 	receiver_pid,
 	player_pid,

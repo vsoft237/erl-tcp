@@ -4,7 +4,7 @@
 
 -module(tcp_interface).
 
--define(DEFAULT_PORTS, [[20001, normal]]).
+-define(DEFAULT_PORTS, [[20001, normal, false]]).
 
 %% ====================================================================
 %% API functions
@@ -23,8 +23,8 @@ start([]) ->
 	ok.
 
 get_ports([H | T], Loop) ->
-	{_,[{_, Port},{_, Type}]} = H,
-	get_ports(T, [[Port, Type]|Loop]);
+	{_,[{_, Port},{_, Type},{_, Ssl}]} = H,
+	get_ports(T, [[Port, Type, Ssl]|Loop]);
 get_ports([], Loop) ->
 	case Loop of
 		[] ->

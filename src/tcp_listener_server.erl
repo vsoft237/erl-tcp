@@ -6,7 +6,7 @@
 -behaviour(gen_server).
 
 -define(TCP_LISTEN_OPTION, [
-    binary,
+	{mode, binary},
     {packet, 0},
     {active, false},
     {reuseaddr, true},
@@ -23,9 +23,9 @@
     {mode, binary},
     {packet, 0},
     {active, false},
-    {verify, verify_none},
-    {certfile, "/mnt/games/exchange_house/ssl/ssl.crt"},
-    {keyfile, "/mnt/games/exchange_house/ssl/ssl.key"}
+	{verify, verify_none},
+    {certfile, "priv/ssl/ssl.crt"},
+    {keyfile, "priv/ssl/ssl.key"}
 ]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -38,19 +38,20 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([start_link/2]).
+-export([start_link/3]).
 
-start_link(Port, Type) ->
-    gen_server:start_link(?MODULE, [Port, Type], []).
+start_link(Port, Type, Ssl) ->
+    gen_server:start_link(?MODULE, [Port, Type, Ssl], []).
 
 %% init/1
 %% ====================================================================
-init([Port, Type]) ->
-	Option = get_listen_option(Type),
-	case gen_tcp:listen(Port, Option) of
+init([Port, Type, Ssl]) ->
+	Option = get_listen_option(Ssl),
+	TcpFun = tcp_fun(Ssl),
+	case TcpFun:listen(Port, Option) of
 		{ok, LSock} ->
-			tcp_acceptor_sup:start_child(LSock, Type),
-			{ok, #state{port = Port}, 0};
+			tcp_acceptor_sup:start_child(LSock, Type, Ssl),
+			{ok, #state{port = Port}};
 		{error, _Reason} ->
 			{stop, listen_failure, state}
 	end.
@@ -90,13 +91,20 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %% ====================================================================
 
-get_listen_option(Type) ->
-    case Type of
-		ssl ->
+get_listen_option(Ssl) ->
+    case Ssl of
+		true ->
 			?TCP_SSL_LISTEN_OPTION;
 		_ ->
 			?TCP_LISTEN_OPTION
 	end.
-%%{plugins, [rebar3_hex]}.
+
+tcp_fun(Ssl) ->
+	case Ssl of
+		true ->
+			ssl;
+		false ->
+			gen_tcp
+	end.
 
 

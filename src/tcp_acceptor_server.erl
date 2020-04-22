@@ -60,6 +60,13 @@ handle_info({tcp_send, Bin}, State) ->
 	end,
 	{noreply, State};
 
+handle_info({'EXIT', _Pid, _Reason}, State) ->
+	#tcp_state{
+	   receiver_pid = RecvPid
+	  } = State,
+	stop_receiver(RecvPid),	
+	{stop, normal, State};
+
 %% Web Socket 首次接入
 handle_info({_Type, Socket, HeaderData}, State) ->
 	#tcp_state{type = Type, ssl = Ssl} = State,
@@ -96,13 +103,6 @@ handle_info({_Type, Socket, HeaderData}, State) ->
     end;
 
 handle_info(exit_without_connect, State) ->
-	{stop, normal, State};
-
-handle_info({'EXIT', _Pid, _Reason}, State) ->
-	#tcp_state{
-	   receiver_pid = RecvPid
-	  } = State,
-	stop_receiver(RecvPid),	
 	{stop, normal, State};
 
 handle_info(timeout, State) ->

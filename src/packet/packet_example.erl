@@ -11,7 +11,7 @@
 
 unpack(Bin) ->
 	<<Cmd:16, DataBin/binary>> = Bin,
-	Data = protobuf_packet:decode_msg(Cmd, DataBin),
+	Data = protobuf_packet:decode(Cmd, DataBin),
 	{ok, {Cmd, Data}}.
 
 unpack_web(Bin, Opcode) ->

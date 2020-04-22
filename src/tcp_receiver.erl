@@ -33,6 +33,8 @@ handle_packet(Socket, ConnectPid, Type, TcpFun) ->
 	case handle_head(Socket, Type, TcpFun) of
 		{ok, Args} ->
 			send_data(ConnectPid, Args);
+		ignore ->
+			ok;
 		{error, Reason} ->
 			{error, Reason}
 	end.
@@ -76,7 +78,12 @@ handle_web_head_0(Socket, TcpFun) ->
 	case TcpFun:recv(Socket, 2) of
 		{ok, Bin} ->
 			<<_Fin:1, _Rsv:3, Opcode:4, _Mask:1, Len:7>> = Bin,
-			handle_web_head_1(Socket, Opcode, Len, TcpFun);
+			case Opcode of
+				Opcode when Opcode == 1 orelse Opcode == 2 ->
+					handle_web_head_1(Socket, Opcode, Len, TcpFun);
+				_ ->
+					ignore
+			end;
 		Error ->
 			Error
 	end.

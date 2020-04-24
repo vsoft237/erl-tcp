@@ -110,7 +110,7 @@ handle_info(timeout, State) ->
 	{stop, hearbeat_timeout, State};
 
 %% 保存玩家PID
-handle_info({save_main_pid, MainPID}, State}) ->
+handle_info({save_main_pid, MainPID}, State) ->
 	{noreply, State#tcp_state{main_pid = MainPID}};
 
 handle_info(kill, State) ->

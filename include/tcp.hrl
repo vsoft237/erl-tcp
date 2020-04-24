@@ -4,7 +4,7 @@
 	ssl,
 	socket,
 	receiver_pid,
-	player_pid,
+	main_pid,
 	ip,
 	port,
 	user_agent

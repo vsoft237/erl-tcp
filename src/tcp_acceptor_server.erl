@@ -110,14 +110,11 @@ handle_info(timeout, State) ->
 	{stop, hearbeat_timeout, State};
 
 %% 保存玩家PID
-handle_info({save_player_pid, RolePID}, State = #tcp_state{player_pid = OldRolePid}) ->
-	catch OldRolePid ! {'EXIT', self(), exit},
-	catch unlink(OldRolePid),
-	link(RolePID),
-	{noreply, State#tcp_state{player_pid = RolePID}};
+handle_info({save_main_pid, MainPID}, State}) ->
+	{noreply, State#tcp_state{main_pid = MainPID}};
 
 handle_info(kill, State) ->
-	{stop, normal, State};
+	{stop, kill, State};
 
 handle_info(_Info, State) ->
 	{noreply, State}.

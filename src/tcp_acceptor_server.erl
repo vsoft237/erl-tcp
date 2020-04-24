@@ -50,7 +50,7 @@ handle_info({tcp_send, Bin}, State) ->
 		normal ->
 			Bin;
 		_ ->
-			web_packet:pack_web_bin(Bin)
+			packet:pack_web(Bin)
 	end,
 	case Ssl of
 		true ->
